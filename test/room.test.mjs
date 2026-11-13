@@ -15,13 +15,10 @@ room.handle('B', { t: 'join', cid: 'cidB', name: '밥' });
 room.handle('O', { t: 'join', cid: 'cidO', name: '주인', ownerKey: 'secret' });
 assert.equal(a.last('init').owner, false);
 assert.equal(o.last('init').owner, true);
+assert.equal(a.last('init').snowman, true, '눈사람은 새 방에 기본으로 존재한다');
 assert.ok(a.last('join'), 'A가 다른 입장자를 받는다');
 
-// 눈사람: 최초 생성 방송 + 방 상태 저장
-room.handle('A', { t: 'snowman' });
-assert.equal(room.snowman, true);
-assert.equal(b.last('snowman').nick, '앨리스');
-assert.equal(saves.snowman, true);
+// 눈사람: 여러 방문자가 공유 스타일을 바꾸고 상태 저장
 room.handle('A', { t: 'snowmanStyle', style: { scarf: 'blue', hat: 'santaHat' } });
 assert.deepEqual(room.snowmanStyle, { scarf: 'blue', hat: 'santaHat' });
 assert.equal(b.last('snowmanStyle').nick, '앨리스');

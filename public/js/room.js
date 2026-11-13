@@ -15,7 +15,7 @@ export class Room {
     this.ornaments = state.ornaments || [];
     this.letters = state.letters || [];
     this.used = state.used || {}; // cid -> {o:1, l:1}  (오너먼트/편지 사용 여부)
-    this.snowman = !!state.snowman;
+    this.snowman = true;
     this.snowmanStyle = state.snowmanStyle || { scarf: 'red', hat: 'topHat' };
     this.ownerKey = opts.ownerKey || '';
     this.save = opts.save || (() => {});

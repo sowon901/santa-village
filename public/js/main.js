@@ -117,7 +117,7 @@ function onMsg(m) {
       m.players.forEach((p) => players.set(p.id, mkPlayer(p)));
       m.gifts.forEach((g) => world.addGift(g, false));
       m.ornaments.forEach((o) => world.addOrnament(o, false));
-      if (m.snowman) world.buildSnowman(false, m.snowmanStyle);
+      world.applySnowmanStyle(m.snowmanStyle);
       joined = true; refreshCount(); updateStats(); refreshButtons();
       break;
     }
@@ -219,7 +219,6 @@ function runStation(st) {
     ornamentPicker((kind) => startPlacing(kind, 'tree'));
   }
   else if (st === 'snowman') {
-    if (!world.snowman && world.buildSnowman()) net.send({ t: 'snowman' });
     snowmanCustomizer(world.snowmanStyle, (style) => {
       world.applySnowmanStyle(style);
       net.send({ t: 'snowmanStyle', style });

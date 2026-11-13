@@ -58,43 +58,44 @@ export class BackgroundMusic {
 
   schedulePhrase() {
     if (!this.enabled) return;
-    const beat = 60 / 112;
+    const beat = 60 / 120;
     const start = this.context.currentTime + 0.12;
     const chords = [
       { bass: 43, notes: [55, 59, 62, 67] },
-      { bass: 38, notes: [50, 54, 57, 62] },
-      { bass: 40, notes: [52, 55, 59, 64] },
-      { bass: 36, notes: [48, 52, 55, 60] },
+      { bass: 48, notes: [48, 52, 55, 60] },
+      { bass: 50, notes: [50, 54, 57, 60] },
       { bass: 43, notes: [55, 59, 62, 67] },
-      { bass: 38, notes: [50, 54, 57, 62] },
-      { bass: 36, notes: [48, 52, 55, 60] },
-      { bass: 38, notes: [50, 54, 57, 62] },
+      { bass: 43, notes: [55, 59, 62, 67] },
+      { bass: 43, notes: [55, 59, 62, 67] },
+      { bass: 50, notes: [50, 54, 57, 60] },
+      { bass: 50, notes: [50, 54, 57, 60] },
     ];
     const melody = [
-      [79, 0, 0.5], [79, 1, 0.5], [79, 2, 1], [79, 4, 0.5], [79, 5, 0.5], [79, 6, 1],
-      [79, 8, 0.5], [83, 9, 0.5], [74, 10, 0.5], [76, 11, 0.5], [79, 12, 1], [81, 14, 1],
-      [84, 16, 1], [84, 18, 0.5], [84, 19, 0.5], [84, 20, 1], [83, 22, 1],
-      [83, 24, 0.5], [83, 25, 0.5], [81, 26, 1], [81, 28, 0.5], [81, 29, 0.5], [79, 30, 2],
-      [79, 32, 0.5], [79, 33, 0.5], [79, 34, 1], [79, 36, 0.5], [79, 37, 0.5], [79, 38, 1],
-      [79, 40, 0.5], [83, 41, 0.5], [74, 42, 0.5], [76, 43, 0.5], [79, 44, 1], [81, 46, 1],
-      [84, 48, 1], [84, 50, 0.5], [84, 51, 0.5], [84, 52, 1], [83, 54, 1],
-      [81, 56, 0.5], [81, 57, 0.5], [79, 58, 1], [76, 60, 1], [74, 62, 2],
+      [76, 0, 1], [76, 1, 1], [76, 2, 2],
+      [76, 4, 1], [76, 5, 1], [76, 6, 2],
+      [76, 8, 1], [79, 9, 1], [72, 10, 1], [74, 11, 1], [76, 12, 4],
+      [77, 16, 1], [77, 17, 1], [77, 18, 1], [77, 19, 1],
+      [77, 20, 1], [76, 21, 1], [76, 22, 1], [76, 23, 0.5], [76, 23.5, 0.5],
+      [76, 24, 1], [74, 25, 1], [74, 26, 1], [76, 27, 1], [74, 28, 2], [79, 30, 2],
     ];
     const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
 
-    chords.forEach((chord, bar) => {
+    for (let bar = 0; bar < 16; bar++) {
+      const chord = chords[bar % chords.length];
       const at = start + bar * beat * 4;
-      this.tone(hz(chord.bass), at, beat * 1.4, 0.03, 'triangle');
-      this.tone(hz(chord.bass + 12), at + beat * 2, beat * 0.8, 0.018, 'triangle');
+      this.tone(hz(chord.bass), at, beat * 0.72, 0.045, 'triangle');
+      this.tone(hz(chord.bass + 12), at + beat * 2, beat * 0.58, 0.028, 'triangle');
       chord.notes.forEach((note, i) => {
-        this.tone(hz(note), at, beat * 3.8, i === 3 ? 0.012 : 0.016, 'sine');
-        this.tone(hz(note + 12), at + beat * 1.5, beat * 0.34, 0.008, 'triangle');
-        this.tone(hz(note + 12), at + beat * 3.5, beat * 0.34, 0.008, 'triangle');
+        const chordVolume = i === 3 ? 0.018 : 0.012;
+        this.tone(hz(note), at, beat * 0.62, chordVolume, 'sine');
+        this.tone(hz(note), at + beat * 2, beat * 0.48, chordVolume * 0.82, 'sine');
       });
-    });
-    melody.forEach(([note, offset, length]) => this.tone(hz(note), start + offset * beat / 2, length * beat / 2 * 0.9, 0.035, 'sine', true));
+    }
+    for (let repeat = 0; repeat < 2; repeat++) {
+      melody.forEach(([note, offset, length]) => this.tone(hz(note), start + (offset + repeat * 32) * beat, length * beat * 0.9, 0.04, 'sine', true));
+    }
 
-    const phraseMs = beat * 32 * 1000;
+    const phraseMs = beat * 64 * 1000;
     this.timer = setTimeout(() => this.schedulePhrase(), phraseMs - 250);
   }
 }

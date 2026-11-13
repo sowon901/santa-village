@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PAPERS, RIBBONS, ORNAMENTS, SNOWMAN_HATS, WORLD } from './data.js';
-import { paperCanvas, glowTexture, textSprite, plankTexture, signTexture } from './gfx.js';
+import { paperCanvas, glowTexture, textSprite, plankTexture } from './gfx.js';
 
 export const TREE = { x: -8, z: -4, R: 3.35, H: 8.4, y0: 1.4 };
 export const GIFT_PILE = { x: 6.2, z: -18.5 };
@@ -132,6 +132,7 @@ export class World {
     this.buildWorkshop();
     this.buildTree();
     this.buildPlaza();
+    this.buildSnowman(false);
     this.buildSnow();
     this.buildGiftPile();
     this.buildSparks();
@@ -269,6 +270,40 @@ export class World {
     const path = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 12), new THREE.MeshStandardMaterial({ color: '#cdd6f2', roughness: 1 }));
     path.rotation.x = -Math.PI / 2; path.position.set(0, 0.021, -3); path.receiveShadow = true;
     r.add(path);
+    const mat = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.08, 2.4), S('#b72f36', { roughness: 0.95 }));
+    mat.position.set(0, 0.07, 7.6);
+    mat.receiveShadow = true;
+    r.add(mat);
+    const matInset = new THREE.Mesh(new THREE.BoxGeometry(4.08, 0.025, 2.08), S('#d94a4b', { roughness: 0.9 }));
+    matInset.position.set(0, 0.12, 7.6);
+    matInset.receiveShadow = true;
+    r.add(matInset);
+    const greetingCanvas = document.createElement('canvas');
+    greetingCanvas.width = 768;
+    greetingCanvas.height = 256;
+    const greetingContext = greetingCanvas.getContext('2d');
+    greetingContext.fillStyle = '#f7d98a';
+    greetingContext.shadowColor = 'rgba(80, 10, 16, .6)';
+    greetingContext.shadowBlur = 8;
+    greetingContext.font = 'bold 82px Georgia, serif';
+    greetingContext.textAlign = 'center';
+    greetingContext.textBaseline = 'middle';
+    greetingContext.fillText('Merry Christmas', greetingCanvas.width / 2, greetingCanvas.height / 2, 730);
+    const greetingTexture = new THREE.CanvasTexture(greetingCanvas);
+    greetingTexture.colorSpace = THREE.SRGBColorSpace;
+    const greeting = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.9, 1.3),
+      new THREE.MeshBasicMaterial({ map: greetingTexture, transparent: true, depthWrite: false }),
+    );
+    greeting.rotation.x = -Math.PI / 2;
+    greeting.position.set(0, 0.14, 7.6);
+    r.add(greeting);
+    for (const x of [-1.85, 1.85]) for (const z of [-0.85, 0.85]) {
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), S('#f1d08a', { roughness: 0.75 }));
+      tuft.position.set(x, 0.145, 7.6 + z);
+      tuft.scale.set(1, 0.3, 1);
+      r.add(tuft);
+    }
     // 먼 언덕 실루엣
     for (let i = 0; i < 18; i++) {
       const a = (i / 18) * Math.PI * 2 + rnd(-0.1, 0.1), d = rnd(95, 125);
@@ -558,11 +593,6 @@ export class World {
     this.marker('✉️ 편지', 9, 4.8, -11, 'letter');
 
     // 앞은 뚫린 개방형: 입구 쪽은 막지 않고 간판만 유지
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshStandardMaterial({ map: signTexture('🎅 산타 공방'), roughness: 0.8 }));
-    sign.position.set(0, 5.3, 6.3);
-    g.add(sign);
-    sign.userData.keep = true;
-    for (const sx of [-2.6, 2.6]) CY(g, 0.03, 0.03, 0.9, '#2a2a38', sx, 6.0, 6.28, { seg: 6 });
     this.bulbLine(g, [-14, 5.9, 6.1], [14, 5.9, 6.1], 22, 0.45);
     this.bulbLine(g, [-14, 6.0, -21.7], [14, 6.0, -21.7], 22, 0.4);
     this.ticks.push((dt, t) => bulbMats.forEach((m, i) => { m.opacity = 0.55 + 0.45 * Math.sin(t * 2.2 + i * 1.7); }));
