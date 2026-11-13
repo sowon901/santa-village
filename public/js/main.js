@@ -7,11 +7,13 @@ import { World, SPOTS, TREE } from './world.js';
 import { textSprite } from './gfx.js';
 import { connect } from './net.js';
 import { BackgroundMusic } from './music.js';
+import { startSnowfall } from './snow.js';
 import { toast, closeModal, modalOpen, costumeControls, costumeModal, giftWizard, ornamentPicker, emotePicker, letterModal, snowmanCustomizer } from './ui.js';
 
 void Room;
 const $ = (s) => document.querySelector(s);
 const backgroundMusic = new BackgroundMusic();
+startSnowfall($('#snowfall'));
 const t0 = performance.now();
 const ls = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -255,7 +257,7 @@ document.querySelector('#hud').addEventListener('click', (e) => {
     case 'emote': emotePicker((id) => { startEmote(me.player.av, id); net.send({ t: 'emote', e: id }); }); break;
     case 'sleigh': watchSanta(); break;
     case 'music':
-      backgroundMusic.toggle().catch(() => setMusicButton(false));
+      backgroundMusic.toggle().then(setMusicButton).catch(() => setMusicButton(false));
       setMusicButton(backgroundMusic.enabled);
       break;
     default:
@@ -379,7 +381,7 @@ if (/[?&]debug/.test(location.search)) {
   const bar = $('#bar'), msg = $('#loadmsg');
   const setP = (v, t) => { bar.style.width = `${v}%`; if (t) msg.textContent = t; };
   setP(15, '밤하늘에 별을 켜는 중…');
-  net = await connect();
+  net = await connect({ timeout: 1500 });
   net.onmessage = onMsg;
   net.onclose = () => toast('연결이 끊겼어요. 새로고침 해주세요 🔌', 8000);
   $('#mode').textContent = net.mode === 'online' ? '🟢 온라인' : '🧪 체험 모드';
@@ -396,4 +398,10 @@ if (/[?&]debug/.test(location.search)) {
     window.__stopLoadingStars?.();
     setTimeout(() => $('#loading').remove(), 1200);
   }, 350);
-})();
+})().catch((error) => {
+  console.error('Santa Village startup failed:', error);
+  const message = $('#loadmsg');
+  if (message) message.textContent = '마을을 여는 중 문제가 생겼어요. 페이지를 새로고침해 주세요.';
+  $('#loading')?.classList.add('gone');
+  if ($('#start')) $('#start').hidden = false;
+});

@@ -12,7 +12,7 @@ const r = await build({
 });
 const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync(resolve(root, 'public/style.css'), 'utf8');
-let html = readFileSync(resolve(root, 'public/index.html'), 'utf8');
+let html = readFileSync(resolve(root, 'public/index.template.html'), 'utf8');
 html = html
   .replace(/<script type="importmap">[\s\S]*?<\/script>\n?/, '')
   .replace('<link rel="stylesheet" href="style.css">', `<style>${css}</style>`)

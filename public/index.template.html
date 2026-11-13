@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>산타 마을</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/examples/jsm/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="snowfall" aria-hidden="true"></canvas>
+
+<!-- 로딩: 밤하늘 + 산타와 루돌프 썰매가 흰 그림자처럼 지나감 -->
+<div id="loading">
+  <canvas id="stars"></canvas>
+  <svg class="sleigh" viewBox="0 0 760 220" aria-hidden="true">
+    <g fill="#fff">
+      <!-- 루돌프 -->
+      <g transform="translate(40 40)">
+        <ellipse cx="86" cy="86" rx="46" ry="22"/>
+        <path d="M120 76 L150 44 L162 50 L140 86Z"/>
+        <ellipse cx="160" cy="46" rx="17" ry="13"/>
+        <circle cx="178" cy="48" r="6"/>
+        <path d="M152 36 L146 8 M146 16 L132 6 M156 34 L168 6 M162 14 L176 8" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M52 100 L40 134 M64 106 L58 138 M104 106 L112 138 M116 100 L130 130" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" class="legs"/>
+      </g>
+      <!-- 고삐 -->
+      <path d="M215 88 Q300 104 372 130" stroke="#fff" stroke-width="3" fill="none"/>
+      <!-- 썰매 -->
+      <path d="M350 150 Q350 190 400 192 L560 192 Q600 192 612 150 L560 150 Q540 176 500 176 L420 176 Q390 176 388 150Z"/>
+      <path d="M340 196 Q430 214 600 198 Q630 194 640 176" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path d="M395 150 Q400 112 440 106 L560 106 Q600 106 606 150Z"/>
+      <!-- 선물 자루 -->
+      <path d="M540 108 Q520 50 560 40 Q604 36 612 80 Q618 104 600 108Z"/>
+      <!-- 산타 -->
+      <circle cx="446" cy="64" r="19"/>
+      <path d="M426 56 Q440 10 482 28 Q470 44 466 54Z"/>
+      <circle cx="484" cy="28" r="7"/>
+      <path d="M430 76 Q446 112 462 78 Q446 90 430 76Z"/>
+      <path d="M420 90 Q430 106 450 102 L470 100 Q470 76 450 78Z"/>
+    </g>
+  </svg>
+  <div class="ltext"><h1>산타 마을</h1><p id="loadmsg">별을 켜는 중…</p><div class="barwrap"><div id="bar"></div></div></div>
+</div>
+
+<!-- 시작: 닉네임 + 코스튬 (3D 캐릭터를 보면서 선택) -->
+<section id="start" hidden>
+  <div class="panel">
+    <h2>🎅 코스튬을 골라요</h2>
+    <label class="nick">닉네임<input id="nick" maxlength="10" placeholder="산타친구" autocomplete="off"></label>
+    <div id="start-costume"></div>
+    <button class="btn big" id="enter">산타 마을 입장하기 🎄</button>
+    <p class="tip">입장 후에도 언제든 코스튬을 바꿀 수 있어요</p>
+  </div>
+</section>
+
+<!-- 상단 정보 -->
+<header id="top"><span id="mode"></span><span id="count"></span><span id="stats"></span></header>
+
+<!-- 하단 메뉴 -->
+<nav id="hud" hidden>
+  <button data-act="gift"><i>🎁</i>선물 포장</button>
+  <button data-act="ornament"><i>🎄</i>오너먼트</button>
+  <button data-act="letter"><i>✉️</i>편지</button>
+  <button data-act="snowman"><i>⛄</i>눈사람</button>
+  <button data-act="costume"><i>👗</i>코스튬</button>
+  <button data-act="emote"><i>😀</i>감정</button>
+  <button data-act="sleigh"><i>🛷</i>산타 보기</button>
+  <button data-act="music" aria-pressed="false" title="배경 음악 켜기/끄기"><i>🎵</i>음악</button>
+</nav>
+
+<!-- 오너먼트 배치 안내 -->
+<div id="place" hidden>
+  <span>🎄 트리를 눌러 걸 위치를 고르세요</span>
+  <button class="btn small" id="place-ok" disabled>여기에 달기</button>
+  <button class="btn small ghost" id="place-cancel">취소</button>
+</div>
+
+<div id="toasts"></div>
+<script>
+window.addEventListener('error', (event) => {
+  console.error('Santa Village script failed to load:', event.message || event);
+  const message = document.querySelector('#loadmsg');
+  if (message) message.textContent = '화면 스크립트를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.';
+  document.querySelector('#loading')?.classList.add('gone');
+  const start = document.querySelector('#start');
+  if (start) start.hidden = false;
+});
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Santa Village startup rejected:', event.reason);
+});
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
