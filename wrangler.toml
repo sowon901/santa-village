@@ -1,0 +1,15 @@
+name = "santa-village"
+main = "src/worker.js"
+compatibility_date = "2025-06-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "SantaRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SantaRoom"]

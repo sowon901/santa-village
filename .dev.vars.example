@@ -1,0 +1,3 @@
+# 로컬 개발용 (wrangler dev). 배포 시에는: npx wrangler secret put OWNER_KEY
+# 이 값이 "공방 주인 열쇠"입니다. 잠긴 편지는 이 열쇠를 입력한 사람만 볼 수 있어요.
+OWNER_KEY=change-me
