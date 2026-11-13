@@ -1,6 +1,6 @@
 // 방 규칙(선물/오너먼트/편지/이동 중계). DOM·Cloudflare API에 의존하지 않는 순수 로직이라
 // Durable Object(온라인)와 브라우저 체험 모드(오프라인)에서 똑같이 사용합니다.
-import { sanitizeLook, GIFT_ITEMS, PAPERS, RIBBONS, ORNAMENTS, EMOTES, LIMITS } from './data.js';
+import { sanitizeLook, GIFT_ITEMS, PAPERS, RIBBONS, ORNAMENTS, SNOWMAN_HATS, EMOTES, LIMITS } from './data.js';
 
 const has = (arr, id) => arr.some((x) => x.id === id);
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, n);
@@ -15,6 +15,8 @@ export class Room {
     this.ornaments = state.ornaments || [];
     this.letters = state.letters || [];
     this.used = state.used || {}; // cid -> {o:1, l:1}  (오너먼트/편지 사용 여부)
+    this.snowman = !!state.snowman;
+    this.snowmanStyle = state.snowmanStyle || { scarf: 'red', hat: 'topHat' };
     this.ownerKey = opts.ownerKey || '';
     this.save = opts.save || (() => {});
     this.conns = new Map(); // connId -> {send, p, t:{...}}
@@ -38,10 +40,6 @@ export class Room {
     if (owner || !l.locked) { const { cid, ...safe } = l; return safe; } // cid(작성자 식별자)는 보내지 않음
     return { id: l.id, locked: true, at: l.at };
   }
-  ambient() {
-    this.broadcast({ t: 'event', kind: Math.random() < 0.5 ? 'sleigh' : 'firework', seed: Math.floor(Math.random() * 1e9) });
-  }
-
   handle(id, m) {
     const c = this.conns.get(id);
     if (!c || !m || typeof m !== 'object') return;
@@ -65,6 +63,7 @@ export class Room {
         c.send({
           t: 'init', id, players: others, gifts: this.gifts, ornaments: this.ornaments,
           letters: this.lettersFor(owner), owner, used: { ornament: !!u.o, letter: !!u.l },
+          snowman: this.snowman, snowmanStyle: this.snowmanStyle,
         });
         this.broadcast({ t: 'join', p: pub(c.p) }, id);
         break;
@@ -87,15 +86,31 @@ export class Room {
         this.broadcast({ t: 'emote', id, e: m.e }, id);
         break;
       }
-      case 'firework': {
-        if (now - (c.t.fw || 0) < 4000) return c.send({ t: 'err', msg: '폭죽은 잠깐 쉬었다가 쏠 수 있어요 🎆' });
-        c.t.fw = now;
-        this.broadcast({ t: 'firework', x: num(m.x, -40, 40, p.x), z: num(m.z, -40, 40, p.z) });
+      case 'snowman': {
+        if (this.snowman) return c.send({ t: 'err', msg: '눈사람은 이미 마당에 있어요 ⛄' });
+        this.snowman = true;
+        this.save('snowman', true);
+        this.broadcast({ t: 'snowman', nick: p.name, style: this.snowmanStyle }, id);
+        break;
+      }
+      case 'snowmanStyle': {
+        if (!this.snowman) return c.send({ t: 'err', msg: '먼저 마당에 눈사람을 만들어주세요 ⛄' });
+        if (now - (c.t.snowmanStyle || 0) < 400) return;
+        c.t.snowmanStyle = now;
+        const style = m.style || {};
+        this.snowmanStyle = {
+          scarf: has(RIBBONS, style.scarf) ? style.scarf : this.snowmanStyle.scarf,
+          hat: has(SNOWMAN_HATS, style.hat) ? style.hat : this.snowmanStyle.hat,
+        };
+        this.save('snowmanStyle', this.snowmanStyle);
+        this.broadcast({ t: 'snowmanStyle', style: this.snowmanStyle, nick: p.name });
         break;
       }
       case 'gift': {
         if (now - (c.t.gift || 0) < 1500) return c.send({ t: 'err', msg: '선물은 조금 천천히 포장해요 🎁' });
-        if (!has(GIFT_ITEMS, m.item) || !has(PAPERS, m.paper) || !has(RIBBONS, m.ribbon)) return;
+        if (!has(GIFT_ITEMS, m.item) || !has(PAPERS, m.paper) || !has(RIBBONS, m.ribbon)) {
+          return c.send({ t: 'err', msg: '선물은 올바른 종류·포장지·리본을 골라야 해요 🎁' });
+        }
         if (this.gifts.length >= LIMITS.gifts) return c.send({ t: 'err', msg: '선물 더미가 가득 찼어요!' });
         c.t.gift = now;
         const gift = { id: rid(), item: m.item, paper: m.paper, ribbon: m.ribbon, nick: p.name, at: now };
@@ -107,7 +122,7 @@ export class Room {
       case 'ornament': {
         const u = this.used[p.cid] || (this.used[p.cid] = {});
         if (u.o) return c.send({ t: 'err', msg: '오너먼트는 한 번만 걸 수 있어요 🎄' });
-        if (!has(ORNAMENTS, m.kind)) return;
+        if (!has(ORNAMENTS, m.kind)) return c.send({ t: 'err', msg: '오너먼트 종류를 다시 골라주세요 🎄' });
         if (this.ornaments.length >= LIMITS.ornaments) return c.send({ t: 'err', msg: '트리가 오너먼트로 가득 찼어요!' });
         const TAU = Math.PI * 2;
         const th = ((num(m.th, -100, 100, 0) % TAU) + TAU) % TAU;

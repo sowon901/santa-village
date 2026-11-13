@@ -1,12 +1,13 @@
-// 산타 마을 월드: 밤하늘/별, 공방(돌하우스 컷어웨이), 트리, 하트 선물 더미, 썰매/폭죽 이벤트
+// 산타 마을 월드: 밤하늘/별, 넓은 공방과 마당, 트리, 선물 더미, 썰매
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { PAPERS, RIBBONS, ORNAMENTS, WORLD } from './data.js';
+import { PAPERS, RIBBONS, ORNAMENTS, SNOWMAN_HATS, WORLD } from './data.js';
 import { paperCanvas, glowTexture, textSprite, plankTexture, signTexture } from './gfx.js';
 
-export const TREE = { x: -14, z: 3, R: 4.3, H: 10.5, y0: 1.4 };
-export const HEART = { x: 14, z: 2 };
-export const SPOTS = { gift: [-5, -14.2], letter: [5, -14.2], tree: [-8.6, 8.4] };
+export const TREE = { x: -8, z: -4, R: 3.35, H: 8.4, y0: 1.4 };
+export const GIFT_PILE = { x: 6.2, z: -18.5 };
+export const SNOWMAN = { x: 10, z: 13.5 };
+export const SPOTS = { gift: [-5, -14.5], letter: [9, -14], tree: [-2.5, 1], snowman: [7.2, 10.5] };
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const mc = new Map();
@@ -123,12 +124,7 @@ export class World {
     this.ticks = [];
     this.gifts = [];
     this.falling = [];
-    this.bursts = [];
-    this.rockets = [];
-    this.timers = [];
     this.pop = [];
-    this.skyUntil = 0;
-    this.skyFocus = 0;
     this.follow = new THREE.Vector3(0, 0, 10);
     this.buildLights();
     this.buildSky();
@@ -137,7 +133,7 @@ export class World {
     this.buildTree();
     this.buildPlaza();
     this.buildSnow();
-    this.buildHeart();
+    this.buildGiftPile();
     this.buildSparks();
     this.buildSleigh();
   }
@@ -159,6 +155,8 @@ export class World {
       const dx = x - cx, dz = z - cz, d = Math.hypot(dx, dz);
       if (d < cr + r) { if (d > 1e-6) { x = cx + (dx / d) * (cr + r); z = cz + (dz / d) * (cr + r); } else x = cx + cr + r; }
     }
+    x = THREE.MathUtils.clamp(x, -14.2, 14.2);
+    z = THREE.MathUtils.clamp(z, -21.2, 18.2);
     const R = WORLD.radius, d = Math.hypot(x, z);
     if (d > R) { x *= R / d; z *= R / d; }
     return [x, z];
@@ -183,9 +181,9 @@ export class World {
     fire.position.set(0, 1.8, -17.6);
     const treeL = new THREE.PointLight(0xffe7a8, 70, 24, 2);
     treeL.position.set(TREE.x, 7, TREE.z + 3);
-    const heartL = new THREE.PointLight(0xff8fb8, 45, 18, 2);
-    heartL.position.set(HEART.x, 6, HEART.z + 4);
-    s.add(warm, fire, treeL, heartL);
+    const giftL = new THREE.PointLight(0xffd184, 42, 18, 2);
+    giftL.position.set(GIFT_PILE.x, 5, GIFT_PILE.z + 3);
+    s.add(warm, fire, treeL, giftL);
     this.ticks.push((dt, t) => { fire.intensity = 50 + Math.sin(t * 13) * 8 + Math.sin(t * 7.3) * 6; });
   }
 
@@ -326,7 +324,6 @@ export class World {
     g.position.set(x, 0, z);
     g.rotation.y = rnd(0, 6);
     this.root.add(g);
-    if (Math.hypot(x, z) < WORLD.radius + 2) this.circles.push([x, z, 0.7 * s]);
   }
 
   house(x, z, w, d, color) {
@@ -377,90 +374,147 @@ export class World {
       const a = Math.random() * Math.PI * 2, d = rnd(30, 62);
       this.pine(Math.cos(a) * d, Math.sin(a) * d, rnd(0.9, 1.7));
     }
-    // 마을 집
-    this.house(-27, -7, 7, 6, '#f3dcc0');
-    this.house(28, -6, 7, 6, '#e8c8d8');
-    this.house(-27, 17, 6.5, 5.5, '#cfe2f3');
-    this.house(28, 19, 6.5, 5.5, '#f6e7b4');
-    // 가로등
-    for (const [x, z] of [[-5.5, 2], [5.5, 2], [-5.5, 13], [5.5, 13], [-18, 11], [18, 11]]) {
-      const g = new THREE.Group();
-      CY(g, 0.1, 0.14, 4.2, '#2a2a38', 0, 2.1, 0, { seg: 8 });
-      SP(g, 0.34, '#ffe9a8', 0, 4.4, 0, { mat: new THREE.MeshBasicMaterial({ color: '#ffe9a8' }), cast: false });
-      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffcf80', transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
-      halo.scale.set(5, 5, 1); halo.position.y = 4.4;
-      g.add(halo);
-      g.position.set(x, 0, z);
-      r.add(g);
-      this.circles.push([x, z, 0.25]);
+    // One festive lamp keeps the front-left tree clear and the yard open.
+    const lamp = new THREE.Group();
+    CY(lamp, 0.1, 0.16, 4.0, '#263a32', 0, 2.0, 0, { seg: 10 });
+    CY(lamp, 0.18, 0.18, 0.16, '#d63031', 0, 1.35, 0, { seg: 10 });
+    CY(lamp, 0.18, 0.18, 0.16, '#2e9e5b', 0, 2.05, 0, { seg: 10 });
+    const wreath = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.1, 8, 24), S('#1f6b43'));
+    wreath.position.set(0, 3.55, 0.12);
+    lamp.add(wreath);
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2;
+      SP(lamp, 0.08, i % 2 ? '#d63031' : '#ffd24a', Math.cos(angle) * 0.42, 3.55 + Math.sin(angle) * 0.42, 0.18, { cast: false });
     }
-    // 눈사람
-    const sm = new THREE.Group();
-    SP(sm, 1.1, '#ffffff', 0, 1.0, 0); SP(sm, 0.82, '#ffffff', 0, 2.3, 0); SP(sm, 0.58, '#ffffff', 0, 3.3, 0);
-    for (const sx of [-1, 1]) SP(sm, 0.07, '#222222', sx * 0.2, 3.4, 0.5, { cast: false });
-    const carrot = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 8), S('#ff8a2b'));
-    carrot.rotation.x = Math.PI / 2; carrot.position.set(0, 3.3, 0.72);
-    sm.add(carrot);
-    CY(sm, 0.5, 0.5, 0.08, '#222233', 0, 3.8, 0); CY(sm, 0.32, 0.32, 0.55, '#222233', 0, 4.1, 0);
-    const sc = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.12, 8, 18), S('#e63946'));
-    sc.rotation.x = Math.PI / 2; sc.position.y = 2.85;
-    sm.add(sc);
-    sm.position.set(4.5, 0, 15);
-    r.add(sm);
-    this.circles.push([4.5, 15, 1.2]);
+    SP(lamp, 0.34, '#ffe9a8', 0, 4.28, 0, { mat: new THREE.MeshBasicMaterial({ color: '#ffe9a8' }), cast: false });
+    const lampGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffcf80', transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending }));
+    lampGlow.scale.set(4.5, 4.5, 1); lampGlow.position.y = 4.3;
+    lamp.add(lampGlow, new THREE.PointLight(0xffd995, 24, 11, 2));
+    lamp.position.set(-12, 0, 9);
+    r.add(lamp);
+    this.circles.push([-12, 9, 0.25]);
+    // 눈사람을 만들 마당 자리
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(2.4, 32), S('#f5f8ff', { roughness: 1 }));
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(SNOWMAN.x, 0.035, SNOWMAN.z);
+    r.add(pad);
+    SP(r, 1.5, '#ffffff', SNOWMAN.x - 2.1, 0.22, SNOWMAN.z, { sc: [1.15, 0.16, 0.8], cast: false });
+    SP(r, 1.5, '#ffffff', SNOWMAN.x + 2.0, 0.22, SNOWMAN.z, { sc: [1.0, 0.16, 0.85], cast: false });
+    this.pine(-11.5, 13, 1.05);
+    this.marker('⛄ 눈사람 꾸미기', SNOWMAN.x, 4.2, SNOWMAN.z, 'snowman');
     this.marker('🎄 오너먼트 달기', TREE.x + 5.5, 3.6, TREE.z + 5, 'tree');
+  }
+
+  buildSnowman(animate = true, style = { scarf: 'red', hat: 'topHat' }) {
+    if (this.snowman) return false;
+    const g = new THREE.Group();
+      SP(g, 1.1, '#ffffff', 0, 1.0, 0);
+      SP(g, 0.82, '#ffffff', 0, 2.3, 0);
+      SP(g, 0.58, '#ffffff', 0, 3.3, 0);
+    for (const sx of [-1, 1]) SP(g, 0.07, '#222222', sx * 0.2, 3.4, 0.5, { cast: false });
+    const carrot = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 8), S('#ff8a2b'));
+    carrot.rotation.x = Math.PI / 2;
+    carrot.position.set(0, 3.3, 0.72);
+    g.add(carrot);
+    for (let i = 0; i < 3; i++) SP(g, 0.09, '#292b34', 0, 2.0 - i * 0.42, 0.78, { cast: false });
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.075, 1.45, 7), S('#79502f'));
+      arm.position.set(side * 1.05, 2.35, 0);
+      arm.rotation.z = side * Math.PI / 2.8;
+      g.add(arm);
+    }
+    const topHat = new THREE.Group();
+    CY(topHat, 0.5, 0.5, 0.1, '#222233', 0, 3.78, 0);
+    CY(topHat, 0.32, 0.32, 0.58, '#222233', 0, 4.1, 0);
+    g.add(topHat);
+    const santaHat = new THREE.Group();
+    CY(santaHat, 0.5, 0.5, 0.1, '#ffffff', 0, 3.78, 0);
+    const santaCap = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.85, 12), S('#d63031'));
+    santaCap.position.y = 4.2;
+    santaHat.add(santaCap);
+    SP(santaHat, 0.13, '#ffffff', 0, 4.68, 0, { cast: false });
+    g.add(santaHat);
+    const beanie = new THREE.Group();
+    CY(beanie, 0.46, 0.46, 0.16, '#1f794b', 0, 3.8, 0);
+    SP(beanie, 0.46, '#1f794b', 0, 4.03, 0, { sc: [1, 0.8, 1], cast: false });
+    SP(beanie, 0.11, '#ffd24a', 0, 4.43, 0, { cast: false });
+    g.add(beanie);
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.12, 8, 18), S('#e63946'));
+    scarf.rotation.x = Math.PI / 2;
+    scarf.position.y = 2.85;
+    g.add(scarf);
+    this.snowmanHatParts = { topHat, santaHat, beanie };
+    this.snowmanScarf = scarf;
+    g.position.set(SNOWMAN.x, 0, SNOWMAN.z);
+    g.scale.setScalar(animate ? 0.01 : 1);
+    this.root.add(g);
+    this.snowman = g;
+    this.applySnowmanStyle(style);
+    this.circles.push([SNOWMAN.x, SNOWMAN.z, 1.2]);
+    if (animate) this.pop.push({ m: g, t: 0 });
+    return true;
+  }
+
+  applySnowmanStyle(style = {}) {
+    const scarf = RIBBONS.find((r) => r.id === style.scarf) || RIBBONS[0];
+    const hat = SNOWMAN_HATS.find((h) => h.id === style.hat) || SNOWMAN_HATS[0];
+    this.snowmanStyle = { scarf: scarf.id, hat: hat.id };
+    if (this.snowmanScarf) this.snowmanScarf.material = S(scarf.color, { roughness: 0.85 });
+    if (this.snowmanHatParts) {
+      for (const [id, part] of Object.entries(this.snowmanHatParts)) part.visible = id === hat.id;
+    }
   }
 
   // ---------- 공방 ----------
   buildWorkshop() {
     const g = (this.workshop = new THREE.Group());
     this.root.add(g);
-    B(g, 18, 0.3, 12, '#fff', 0, 0.15, -14, { mat: new THREE.MeshStandardMaterial({ map: plankTexture(), roughness: 0.8 }), cast: false });
+    B(g, 30, 0.3, 28, '#fff', 0, 0.15, -8, { mat: new THREE.MeshStandardMaterial({ map: plankTexture(), roughness: 0.8 }), cast: false });
     const wall = (cx, cz, sx, sz) => {
       B(g, sx, 1.6, sz, '#b3363c', cx, 1.1, cz);
       B(g, sx + 0.05, 0.25, sz + 0.05, '#ffffff', cx, 1.97, cz);
-      B(g, sx, 4.2, sz, '#f7e8c8', cx, 4.2, cz);
-      B(g, sx + 0.35, 0.4, sz + 0.35, '#ffffff', cx, 6.5, cz);
+      B(g, sx, 5.4, sz, '#f7e8c8', cx, 4.8, cz);
+      B(g, sx + 0.35, 0.4, sz + 0.35, '#ffffff', cx, 7.7, cz);
       this.boxes.push([cx - sx / 2 - 0.05, cz - sz / 2 - 0.05, cx + sx / 2 + 0.05, cz + sz / 2 + 0.05]);
     };
-    wall(0, -20, 18.6, 0.5); // 뒷벽
-    wall(-9, -14, 0.5, 12.2); // 왼쪽 (앞면은 열어둔 돌하우스 단면)
-    wall(9, -14, 0.5, 12.2);
+    wall(0, -22, 30.2, 0.5); // 뒷벽
+    wall(-15, -8, 0.5, 28.2); // 왼쪽
+    wall(15, -8, 0.5, 28.2); // 오른쪽
 
     // 창문
     const winMat = new THREE.MeshBasicMaterial({ color: '#ffd98a' });
     for (const wx of [-6.5, 6.5]) {
-      B(g, 2.7, 2.7, 0.1, '#5a3a22', wx, 3.9, -19.7);
+      B(g, 2.7, 2.7, 0.1, '#5a3a22', wx, 3.9, -21.7);
       const w = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), winMat);
-      w.position.set(wx, 3.9, -19.63);
+      w.position.set(wx, 3.9, -21.63);
       g.add(w);
-      B(g, 0.12, 2.3, 0.06, '#5a3a22', wx, 3.9, -19.6);
-      B(g, 2.3, 0.12, 0.06, '#5a3a22', wx, 3.9, -19.6);
+      B(g, 0.12, 2.3, 0.06, '#5a3a22', wx, 3.9, -21.6);
+      B(g, 2.3, 0.12, 0.06, '#5a3a22', wx, 3.9, -21.6);
     }
     // 벽난로
-    B(g, 4.2, 3.4, 1.4, '#8d8f9c', 0, 2.0, -19.0);
-    B(g, 5, 0.28, 1.7, '#6b4428', 0, 3.8, -18.9);
-    B(g, 2.0, 1.7, 0.2, '#1a1210', 0, 1.2, -18.28, { cast: false });
+    B(g, 4.2, 3.4, 1.4, '#8d8f9c', 0, 2.0, -21.0);
+    B(g, 5, 0.28, 1.7, '#6b4428', 0, 3.8, -20.9);
+    B(g, 2.0, 1.7, 0.2, '#1a1210', 0, 1.2, -20.28, { cast: false });
     const flame = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.2, 8), new THREE.MeshBasicMaterial({ color: '#ff9a3c', transparent: true, opacity: 0.95 }));
-    flame.position.set(0, 1.0, -18.35);
+    flame.position.set(0, 1.0, -20.35);
     const flame2 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 8), new THREE.MeshBasicMaterial({ color: '#ffe08a' }));
-    flame2.position.set(0, 0.85, -18.3);
+    flame2.position.set(0, 0.85, -20.3);
     g.add(flame, flame2);
     this.ticks.push((dt, t) => {
       flame.scale.set(1 + Math.sin(t * 11) * 0.1, 1 + Math.sin(t * 9 + 1) * 0.18, 1);
       flame2.scale.set(1, 1 + Math.sin(t * 14) * 0.2, 1);
     });
     for (const x of [-1.4, 0, 1.4]) {
-      B(g, 0.45, 0.7, 0.12, '#d63031', x, 3.3, -18.0);
-      B(g, 0.5, 0.15, 0.14, '#ffffff', x, 3.65, -18.0);
+      B(g, 0.45, 0.7, 0.12, '#d63031', x, 3.3, -20.0);
+      B(g, 0.5, 0.15, 0.14, '#ffffff', x, 3.65, -20.0);
     }
-    this.boxes.push([-2.2, -19.8, 2.2, -18.2]);
-    this.bulbLine(g, [-2.4, 4.05, -18.0], [2.4, 4.05, -18.0], 9, 0.35);
+    this.boxes.push([-2.2, -21.8, 2.2, -20.2]);
+    this.bulbLine(g, [-2.4, 4.05, -20.0], [2.4, 4.05, -20.0], 9, 0.35);
 
     // 러그
-    CY(g, 3.6, 3.6, 0.06, '#c0392b', 0, 0.33, -12.8, { seg: 40 });
-    CY(g, 3.0, 3.0, 0.07, '#f6efe0', 0, 0.33, -12.8, { seg: 40 });
-    CY(g, 2.4, 2.4, 0.08, '#c0392b', 0, 0.33, -12.8, { seg: 40 });
+    CY(g, 3.6, 3.6, 0.06, '#c0392b', 0, 0.33, -10.5, { seg: 40 });
+    CY(g, 3.0, 3.0, 0.07, '#f6efe0', 0, 0.33, -10.5, { seg: 40 });
+    CY(g, 2.4, 2.4, 0.08, '#c0392b', 0, 0.33, -10.5, { seg: 40 });
 
     // 선물 포장대
     const gt = new THREE.Group();
@@ -496,26 +550,94 @@ export class World {
     CY(lt, 0.14, 0.14, 0.7, '#fff6d6', -1.6, 1.8, 0);
     SP(lt, 0.1, '#ffb340', -1.6, 2.25, 0, { mat: new THREE.MeshBasicMaterial({ color: '#ffcf70' }), cast: false });
     for (let i = 0; i < 3; i++) { const l = B(lt, 0.8, 0.04, 0.55, '#ffffff', -0.4 + i * 0.1, 1.5 + i * 0.04, 0.1); l.rotation.y = i * 0.3; }
-    lt.position.set(5, 0.3, -17.4);
+    lt.position.set(9, 0.3, -11);
     lt.userData.station = 'letter';
     g.add(lt);
     this.pickables.push(lt);
-    this.boxes.push([2.4, -18.4, 7.6, -16.4]);
-    this.marker('✉️ 편지', 5, 4.8, -17.4, 'letter');
+    this.boxes.push([6.4, -12, 11.6, -10]);
+    this.marker('✉️ 편지', 9, 4.8, -11, 'letter');
 
-    // 앞 기둥 + 들보 + 간판
-    for (const sx of [-1, 1]) B(g, 0.6, 6.4, 0.6, '#b3363c', sx * 9, 3.5, -8);
-    B(g, 18.6, 0.5, 0.6, '#7a4a2a', 0, 6.4, -8);
-    B(g, 18.9, 0.35, 0.9, '#ffffff', 0, 6.8, -8);
+    // 앞은 뚫린 개방형: 입구 쪽은 막지 않고 간판만 유지
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshStandardMaterial({ map: signTexture('🎅 산타 공방'), roughness: 0.8 }));
-    sign.position.set(0, 5.3, -7.65);
+    sign.position.set(0, 5.3, 6.3);
     g.add(sign);
     sign.userData.keep = true;
-    for (const sx of [-2.6, 2.6]) CY(g, 0.03, 0.03, 0.9, '#2a2a38', sx, 6.0, -7.68, { seg: 6 });
-    this.bulbLine(g, [-9, 5.9, -7.7], [9, 5.9, -7.7], 20, 0.55);
-    this.bulbLine(g, [-9, 6.0, -19.7], [9, 6.0, -19.7], 20, 0.5);
+    for (const sx of [-2.6, 2.6]) CY(g, 0.03, 0.03, 0.9, '#2a2a38', sx, 6.0, 6.28, { seg: 6 });
+    this.bulbLine(g, [-14, 5.9, 6.1], [14, 5.9, 6.1], 22, 0.45);
+    this.bulbLine(g, [-14, 6.0, -21.7], [14, 6.0, -21.7], 22, 0.4);
     this.ticks.push((dt, t) => bulbMats.forEach((m, i) => { m.opacity = 0.55 + 0.45 * Math.sin(t * 2.2 + i * 1.7); }));
+    this.buildBulletinBoard(g);
     this.loadWorkshopGLB(g);
+  }
+
+  buildBulletinBoard(parent) {
+    const board = (this.letterBoard = new THREE.Group());
+    board.position.set(14.58, 3.65, -5.8);
+    board.userData.keep = true;
+    parent.add(board);
+    B(board, 0.22, 4.5, 9.5, '#68452e', 0, 0, 0);
+    B(board, 0.08, 4.12, 9.12, '#c49a68', -0.15, 0, 0);
+    for (const z of [-4.6, 4.6]) B(board, 0.12, 4.35, 0.12, '#6d4229', -0.22, 0, z);
+    for (const y of [-2.1, 2.1]) B(board, 0.12, 0.12, 9.3, '#6d4229', -0.22, y, 0);
+    const title = textSprite('✉️ 편지 게시판', { w: 320, h: 80, size: 36, scale: 2.1, bg: 'rgba(24,26,70,.86)' });
+    title.position.set(-0.25, 2.55, 0);
+    board.add(title);
+    this.letterEntries = [];
+    this.letterCards = [];
+  }
+
+  letterTexture(letter, index) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320; canvas.height = 180;
+    const ctx = canvas.getContext('2d');
+    const colors = ['#fff0c8', '#e1efff', '#f8dfe2', '#e4f0dc'];
+    ctx.fillStyle = colors[index % colors.length];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(88,61,42,.35)';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    ctx.fillStyle = '#d34a4a';
+    ctx.beginPath(); ctx.arc(160, 14, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#513d33';
+    ctx.font = 'bold 27px Jua, sans-serif';
+    ctx.fillText(letter.locked && letter.text === undefined ? '잠긴 편지' : String(letter.nick || '산타친구').slice(0, 12), 20, 32, 280);
+    ctx.font = '22px Jua, sans-serif';
+    const preview = letter.locked && letter.text === undefined ? '공방 주인만 읽을 수 있어요' : String(letter.text || '').replace(/\s+/g, ' ');
+    ctx.fillText(preview.slice(0, 24), 20, 76, 280);
+    ctx.fillText(preview.slice(24, 48), 20, 108, 280);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  setLetters(letters, animate = false) {
+    for (const card of this.letterCards) {
+      this.letterBoard.remove(card);
+      card.material.map?.dispose();
+      card.material.dispose();
+    }
+    this.letterEntries = [...letters];
+    this.letterCards = [];
+    const visible = this.letterEntries.slice(-16);
+    visible.forEach((letter, index) => {
+      const card = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.7, 0.9),
+        new THREE.MeshStandardMaterial({ map: this.letterTexture(letter, index), roughness: 0.95, side: THREE.DoubleSide }),
+      );
+      const col = index % 4, row = Math.floor(index / 4);
+      card.rotation.y = -Math.PI / 2;
+      card.position.set(-0.27, -1.35 + row * 0.86, -3.1 + col * 2.05);
+      card.userData.letter = letter;
+      this.letterBoard.add(card);
+      this.letterCards.push(card);
+      if (animate) { card.scale.setScalar(0.01); this.pop.push({ m: card, t: 0 }); }
+    });
+  }
+
+  addLetter(letter, animate = true) {
+    this.setLetters([...this.letterEntries, letter], animate);
   }
 
   // Blender로 만든 공방(public/models/workshop.glb)이 있으면 절차적 인테리어 대신 사용. 없으면 그대로 둠.
@@ -537,19 +659,44 @@ export class World {
     g.position.set(TREE.x, 0, TREE.z);
     this.root.add(g);
     CY(g, 0.7, 1.0, 2.2, '#5a3a22', 0, 1.1, 0);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(TREE.R, TREE.H, 32, 1, true), new THREE.MeshStandardMaterial({ color: '#1d7a4f', roughness: 0.9, flatShading: true, side: THREE.DoubleSide }));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(TREE.R, TREE.H, 48, 12, true), new THREE.MeshBasicMaterial({ color: '#1d7a4f', side: THREE.DoubleSide, colorWrite: false, depthWrite: false }));
     cone.position.y = TREE.y0 + TREE.H / 2;
-    cone.castShadow = true;
     g.add(cone);
     this.treeCone = cone;
-    for (const h of [0.1, 0.32, 0.52, 0.72]) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(TREE.R * (1 - h) * 1.04, 0.38, 8, 36), S('#17653f', { flatShading: true }));
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = TREE.y0 + h * TREE.H;
-      ring.scale.z = 0.8;
-      ring.castShadow = true;
-      g.add(ring);
-    }
+    const tierGeometry = (radius, height, seed) => {
+      const radial = 48, rows = 10, positions = [], indices = [];
+      for (let row = 0; row <= rows; row++) {
+        const u = row / rows;
+        for (let i = 0; i <= radial; i++) {
+          const angle = (i / radial) * Math.PI * 2;
+          const scallop = Math.sin(angle * 8 + seed) * (1 - u) * 0.11;
+          const r = Math.max(0.035, radius * Math.pow(1 - u, 0.72) + scallop);
+          const y = height * u - (row === 0 ? 0.18 * (0.5 + 0.5 * Math.sin(angle * 8 + seed)) : 0);
+          positions.push(Math.cos(angle) * r, y, Math.sin(angle) * r);
+        }
+      }
+      for (let row = 0; row < rows; row++) for (let i = 0; i < radial; i++) {
+        const a = row * (radial + 1) + i, b = a + radial + 1;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      return geo;
+    };
+    const tiers = [
+      [0.0, 3.55, 3.35], [1.45, 3.35, 2.9], [2.75, 3.1, 2.35],
+      [4.0, 2.8, 1.85], [5.15, 2.35, 1.3], [6.4, 2.0, 0.75],
+    ];
+    tiers.forEach(([base, height, radius], i) => {
+      const mat = S(['#176b43', '#1d794b', '#17663f', '#218451'][i % 4], { roughness: 0.94, side: THREE.DoubleSide });
+      const branches = new THREE.Mesh(tierGeometry(radius, height, i * 1.7), mat);
+      branches.position.y = TREE.y0 + base;
+      branches.castShadow = true;
+      branches.receiveShadow = true;
+      g.add(branches);
+    });
     const star = new THREE.Mesh(starGeo(0.9), new THREE.MeshStandardMaterial({ color: '#ffe066', emissive: '#ffc933', emissiveIntensity: 1.2 }));
     star.position.set(0, TREE.y0 + TREE.H + 0.35, -0.1);
     g.add(star);
@@ -618,29 +765,19 @@ export class World {
     this.ghost.rotation.y = Math.PI / 2 - o.th;
   }
 
-  // ---------- 하트 선물 더미 ----------
-  buildHeart() {
-    const g = (this.heartGroup = new THREE.Group());
-    g.position.set(HEART.x, 0, HEART.z);
+  // ---------- 직사각형 선물 더미 ----------
+  buildGiftPile() {
+    const g = (this.giftGroup = new THREE.Group());
+    g.position.set(GIFT_PILE.x, 0, GIFT_PILE.z);
     this.root.add(g);
-    const c = 1.15, S_ = 4.2, cells = [];
-    for (let j = 0; j < 18; j++) for (let i = -8; i <= 8; i++) {
-      const x = (i * c) / S_, y = -1.15 + ((j + 0.5) * c) / S_, a = x * x + y * y - 1;
-      if (a * a * a - x * x * y * y * y <= 0) cells.push({ i, j });
-    }
-    const minJ = Math.min(...cells.map((k) => k.j));
-    cells.forEach((k) => { k.j -= minJ; });
-    cells.sort((a, b) => a.j - b.j || Math.abs(a.i) - Math.abs(b.i) || a.i - b.i);
-    this.cells = cells;
-    this.cellSize = c;
-    B(g, 15, 0.4, 7, '#f4f8ff', 0, 0.0, 1.2, { cast: false });
-    // 하트 가이드: 선물이 채워질 자리를 옅은 분홍 칸으로 보여줌 (선물이 쌓이면 가려짐)
-    const guide = new THREE.InstancedMesh(new THREE.BoxGeometry(c * 0.94, c * 0.94, 0.06), new THREE.MeshBasicMaterial({ color: '#ff9ec4', transparent: true, opacity: 0.24, depthWrite: false }), cells.length);
-    const mt = new THREE.Matrix4();
-    cells.forEach((k, n) => { mt.makeTranslation(k.i * c, (k.j + 0.5) * c + 0.2, 0.62); guide.setMatrixAt(n, mt); });
-    g.add(guide);
-    const lab = textSprite('💝 선물이 하트로 쌓여요', { scale: 5.2 });
-    lab.position.set(0, 0.9, 5.4);
+    B(g, 8.2, 0.34, 5.2, '#c58b57', 0, 0.17, 0);
+    B(g, 7.8, 0.08, 4.8, '#f3e5cc', 0, 0.38, 0, { cast: false });
+    B(g, 7.2, 0.08, 0.12, '#9d6242', 0, 0.45, -2.3, { cast: false });
+    this.giftColumns = 7;
+    this.giftRows = 4;
+    this.giftSpacing = 1.03;
+    const lab = textSprite('🎁 선물 더미', { scale: 3.5 });
+    lab.position.set(0, 1.1, 3.15);
     g.add(lab);
   }
 
@@ -672,21 +809,24 @@ export class World {
 
   addGift(gift, animate) {
     const idx = this.gifts.length;
-    const n = this.cells.length;
-    const cell = this.cells[idx % n], layer = Math.floor(idx / n), c = this.cellSize;
+    const perLayer = this.giftColumns * this.giftRows;
+    const slot = idx % perLayer, layer = Math.floor(idx / perLayer);
+    const col = slot % this.giftColumns, row = Math.floor(slot / this.giftColumns);
+    const x = (col - (this.giftColumns - 1) / 2) * this.giftSpacing;
+    const z = (row - (this.giftRows - 1) / 2) * this.giftSpacing;
     const m = this.giftMesh(gift.paper, gift.ribbon);
-    const tx = cell.i * c + rnd(-0.03, 0.03), ty = (cell.j + 0.5) * c + 0.2, tz = 1.2 + layer * c * 1.02;
-    m.position.set(tx, animate ? ty + 16 : ty, tz);
+    const y = 0.95 + layer * 1.02;
+    m.position.set(x + rnd(-0.03, 0.03), animate ? y + 16 : y, z);
     m.rotation.y = rnd(-0.07, 0.07);
     m.scale.setScalar(0.98);
     m.userData.gift = gift;
-    this.heartGroup.add(m);
+    this.giftGroup.add(m);
     this.pickables.push(m);
     this.gifts.push(m);
-    if (animate) this.falling.push({ m, y: ty, v: 0 });
+    if (animate) this.falling.push({ m, y, v: 0 });
   }
 
-  // ---------- 하늘 이벤트: 썰매 / 폭죽 ----------
+  // ---------- 하늘 이벤트: 썰매 ----------
   buildSparks() {
     const N = 300;
     const pos = new Float32Array(N * 3).fill(-999), col = new Float32Array(N * 3), vel = new Float32Array(N * 3), life = new Float32Array(N);
@@ -740,47 +880,18 @@ export class World {
     deer(3.0, 0.7), deer(3.0, -0.7), deer(6.0, 0.7), deer(6.0, -0.7), deer(9.2, 0, true);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffe9b0', transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.scale.set(16, 8, 1); glow.position.set(3, 1.5, 0); g.add(glow);
-    g.scale.setScalar(3.4);
+    g.scale.setScalar(2.2);
     g.visible = false;
     g.traverse((o) => { o.castShadow = false; });
     this.scene.add(g);
-    this.sleigh = { g, legs, active: false, t: 0, dur: 13 };
+    this.sleigh = { g, legs, active: false, t: 0, dur: 9 };
   }
 
   triggerSleigh() {
     if (this.sleigh.active) return;
     Object.assign(this.sleigh, { active: true, t: 0 });
+    this.sleigh.g.position.set(-30, 24, -10);
     this.sleigh.g.visible = true;
-    this.skyUntil = Math.max(this.skyUntil, this.t + 14);
-  }
-
-  launchFirework(x, z, y = rnd(24, 36)) {
-    this.rockets.push({ x, z, ty: y, y: 1, t: 0, dur: rnd(0.8, 1.1) });
-  }
-  burst(x, y, z) {
-    const N = 90;
-    const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), vel = new Float32Array(N * 3);
-    const hue = Math.random();
-    const c1 = new THREE.Color().setHSL(hue, 1, 0.6), c2 = new THREE.Color().setHSL((hue + 0.12 + Math.random() * 0.3) % 1, 1, 0.65);
-    for (let i = 0; i < N; i++) {
-      pos.set([x, y, z], i * 3);
-      const th = Math.random() * Math.PI * 2, ph = Math.acos(rnd(-1, 1)), sp = rnd(6, 10) * (i % 3 === 0 ? 0.6 : 1);
-      vel.set([Math.sin(ph) * Math.cos(th) * sp, Math.cos(ph) * sp, Math.sin(ph) * Math.sin(th) * sp], i * 3);
-      const c = i % 2 ? c1 : c2;
-      col.set([c.r, c.g, c.b], i * 3);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(col.slice(), 3));
-    const mat = new THREE.PointsMaterial({ size: 1.2, map: glowTexture(), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    const pts = new THREE.Points(geo, mat);
-    pts.frustumCulled = false;
-    this.scene.add(pts);
-    this.bursts.push({ pts, geo, mat, pos, vel, base: col, N, t: 0 });
-  }
-  fireworkShow() {
-    for (let i = 0; i < 7; i++) this.timers.push({ at: this.t + i * 0.75 + rnd(0, 0.3), fn: () => this.launchFirework(rnd(-28, 28), rnd(-42, -8)) });
-    this.skyUntil = Math.max(this.skyUntil, this.t + 9.5);
   }
 
   // ---------- 매 프레임 ----------
@@ -789,11 +900,6 @@ export class World {
     const t = this.t;
     this.follow.copy(followPos);
     for (const f of this.ticks) f(dt, t);
-
-    const target = t < this.skyUntil ? 1 : 0;
-    this.skyFocus += (target - this.skyFocus) * Math.min(1, dt * 1.5);
-
-    for (let i = this.timers.length - 1; i >= 0; i--) if (t >= this.timers[i].at) { this.timers[i].fn(); this.timers.splice(i, 1); }
 
     for (const f of this.falling) {
       f.v -= 32 * dt; f.m.position.y += f.v * dt;
@@ -807,37 +913,13 @@ export class World {
     }
     this.pop = this.pop.filter((p) => { if (p.t >= 1) { p.m.scale.setScalar(1); return false; } return true; });
 
-    for (let i = this.rockets.length - 1; i >= 0; i--) {
-      const r = this.rockets[i];
-      r.t += dt;
-      r.y = 1 + (r.ty - 1) * Math.min(1, r.t / r.dur);
-      this.spark(r.x, r.y, r.z, 0.6);
-      if (r.t >= r.dur) { this.burst(r.x, r.y, r.z); this.rockets.splice(i, 1); }
-    }
-    for (let i = this.bursts.length - 1; i >= 0; i--) {
-      const b = this.bursts[i];
-      b.t += dt;
-      const fade = Math.max(0, 1 - b.t / 2.3), col = b.geo.attributes.color.array;
-      for (let k = 0; k < b.N; k++) {
-        b.vel[k * 3 + 1] -= 5 * dt;
-        b.vel[k * 3] *= 0.985; b.vel[k * 3 + 2] *= 0.985;
-        for (let a = 0; a < 3; a++) {
-          b.pos[k * 3 + a] += b.vel[k * 3 + a] * dt;
-          col[k * 3 + a] = b.base[k * 3 + a] * fade * fade;
-        }
-      }
-      b.geo.attributes.position.needsUpdate = true;
-      b.geo.attributes.color.needsUpdate = true;
-      if (b.t > 2.3) { this.scene.remove(b.pts); b.geo.dispose(); b.mat.dispose(); this.bursts.splice(i, 1); }
-    }
-
     const sl = this.sleigh;
     if (sl.active) {
       sl.t += dt;
       const u = sl.t / sl.dur;
       if (u >= 1) { sl.active = false; sl.g.visible = false; }
       else {
-        const p0 = [-150, 30, -70], p1 = [0, 76, -90], p2 = [150, 32, -60];
+        const p0 = [-30, 24, -10], p1 = [0, 38, -18], p2 = [30, 24, -10];
         const at = (k) => [0, 1, 2].map((a) => (1 - k) * (1 - k) * p0[a] + 2 * (1 - k) * k * p1[a] + k * k * p2[a]);
         const p = at(u), q = at(Math.min(1, u + 0.01));
         sl.g.position.set(...p);

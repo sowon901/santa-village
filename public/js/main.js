@@ -3,13 +3,15 @@ import * as THREE from 'three';
 import { Room } from './room.js';
 import { DEFAULT_LOOK, sanitizeLook, GIFT_ITEMS, ORNAMENTS, WORLD } from './data.js';
 import { createAvatar, applyLook, animateAvatar, startEmote } from './avatar.js';
-import { World, SPOTS } from './world.js';
+import { World, SPOTS, TREE } from './world.js';
 import { textSprite } from './gfx.js';
 import { connect } from './net.js';
-import { toast, closeModal, modalOpen, costumeControls, costumeModal, giftWizard, ornamentPicker, emotePicker, letterModal } from './ui.js';
+import { BackgroundMusic } from './music.js';
+import { toast, closeModal, modalOpen, costumeControls, costumeModal, giftWizard, ornamentPicker, emotePicker, letterModal, snowmanCustomizer } from './ui.js';
 
 void Room;
 const $ = (s) => document.querySelector(s);
+const backgroundMusic = new BackgroundMusic();
 const t0 = performance.now();
 const ls = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -75,7 +77,7 @@ function mkPlayer(p, mine = false) {
   scene.add(av);
   return { av, label, x: p.x, z: p.z, ry: p.ry || 0, tx: p.x, tz: p.z, moving: false, name: p.name };
 }
-const me = { id: null, p: null, x: 0, z: 10, ry: 0, target: null, pending: null, name: '' }; // ry 0 = 카메라 쪽(+z)을 봄
+const me = { id: null, p: null, x: 0, z: 3.5, ry: 0, target: null, pending: null, name: '' }; // ry 0 = 카메라 쪽(+z)을 봄
 
 // ---------- 카메라: 선택 화면(클로즈업) → 돌하우스 시점 ----------
 let camMode = 'loading';
@@ -89,9 +91,12 @@ function cameraGoal() {
     return { pos: new THREE.Vector3(f.x - side, 2.6 + up, f.z + 6.6), look: new THREE.Vector3(f.x - side, 1.6 + up, f.z) };
   }
   if (camMode === 'intro') return { pos: new THREE.Vector3(0, 34, 62), look: new THREE.Vector3(0, 0, -2) };
+  if (camMode === 'sleigh') {
+    const p = world.sleigh.g.position;
+    return { pos: new THREE.Vector3(p.x + 5, p.y + 6, p.z + 24), look: new THREE.Vector3(p.x, p.y + 1, p.z) };
+  }
   // 돌하우스 시점: 위에서 비스듬히 내려다보는 고정 각도, 캐릭터를 따라감
   const d = 30 * zoom;
-  // (look.y 를 조금 높여서 화면 위쪽에 밤하늘과 별이 보이게 함)
   return { pos: new THREE.Vector3(f.x * 0.9, 12 * zoom + 3, f.z + d * 0.92), look: new THREE.Vector3(f.x * 0.9, 6, f.z - 3) };
 }
 canvas.addEventListener('wheel', (e) => { zoom = Math.min(1.5, Math.max(0.6, zoom + Math.sign(e.deltaY) * 0.07)); }, { passive: true });
@@ -107,11 +112,13 @@ function onMsg(m) {
       me.id = m.id;
       isOwner = m.owner; used.ornament = m.used.ornament; used.letter = m.used.letter;
       letters.splice(0, letters.length, ...m.letters);
+      world.setLetters(letters, false);
       letterCtx.owner = isOwner;
       m.players.forEach((p) => players.set(p.id, mkPlayer(p)));
       m.gifts.forEach((g) => world.addGift(g, false));
       m.ornaments.forEach((o) => world.addOrnament(o, false));
-      joined = true; refreshCount(); updateStats();
+      if (m.snowman) world.buildSnowman(false, m.snowmanStyle);
+      joined = true; refreshCount(); updateStats(); refreshButtons();
       break;
     }
     case 'join': players.set(m.p.id, mkPlayer(m.p)); toast(`🎅 ${m.p.name} 님이 마을에 왔어요`); refreshCount(); break;
@@ -121,11 +128,11 @@ function onMsg(m) {
     case 'emote': { const p = players.get(m.id); if (p) startEmote(p.av, m.e); break; }
     case 'gift': world.addGift(m.gift, true); toast(`🎁 ${m.gift.nick} 님이 선물을 놓았어요`); updateStats(); break;
     case 'ornament': world.addOrnament(m.o, true); toast(`🎄 ${m.o.nick} 님이 트리를 꾸몄어요`); updateStats(); break;
-    case 'letter': letters.push(m.letter); letterCtx.render?.(); updateStats(); break;
-    case 'letters': letters.splice(0, letters.length, ...m.letters); isOwner = m.owner; letterCtx.owner = isOwner; toast('🔑 공방 주인 모드가 켜졌어요'); letterCtx.render?.(); break;
+    case 'snowman': world.buildSnowman(true, m.style); toast(`⛄ ${m.nick} 님이 눈사람을 만들었어요`); break;
+    case 'snowmanStyle': world.applySnowmanStyle(m.style); toast(`⛄ ${m.nick} 님이 눈사람을 꾸몄어요`); break;
+    case 'letter': letters.push(m.letter); world.addLetter(m.letter, true); letterCtx.render?.(); updateStats(); break;
+    case 'letters': letters.splice(0, letters.length, ...m.letters); world.setLetters(letters, false); isOwner = m.owner; letterCtx.owner = isOwner; toast('🔑 공방 주인 모드가 켜졌어요'); letterCtx.render?.(); break;
     case 'used': if (m.ornament) used.ornament = true; if (m.letter) used.letter = true; refreshButtons(); letterCtx.render?.(); break;
-    case 'event': m.kind === 'sleigh' ? world.triggerSleigh() : world.fireworkShow(); if (m.kind === 'sleigh') toast('🦌 하늘을 봐요! 산타가 지나가요'); break;
-    case 'firework': world.launchFirework(m.x, m.z); break;
     case 'err': toast(m.msg); break;
     default:
   }
@@ -135,6 +142,11 @@ function updateStats() { $('#stats').textContent = `🎁 ${world.gifts.length}  
 function refreshButtons() {
   $('[data-act=ornament]').classList.toggle('used', used.ornament);
   $('[data-act=letter]').classList.toggle('used', used.letter);
+}
+function setMusicButton(enabled) {
+  const button = $('[data-act=music]');
+  button.classList.toggle('active', enabled);
+  button.setAttribute('aria-pressed', String(enabled));
 }
 
 // ---------- 입력/이동 ----------
@@ -191,18 +203,34 @@ function goTo(st) {
   me.pending = st;
   marker(...SPOTS[st]);
 }
+function watchSanta() {
+  if (camMode !== 'play' || world.sleigh.active) return;
+  me.target = null;
+  me.pending = null;
+  world.triggerSleigh();
+  camMode = 'sleigh';
+  $('#hud [data-act=sleigh]').disabled = true;
+}
 function runStation(st) {
-  if (st === 'gift') giftWizard((g) => { net.send({ t: 'gift', ...g }); toast('🎁 선물을 하트 더미에 놓았어요!'); });
+  if (st === 'gift') giftWizard((g) => { net.send({ t: 'gift', ...g }); toast('🎁 선물을 직사각형 선물 더미에 놓았어요!'); });
   else if (st === 'letter') letterModal(letterCtx);
   else if (st === 'tree') {
     if (used.ornament) return toast('오너먼트는 한 번만 달 수 있어요 🎄 (이미 달았어요)');
-    ornamentPicker(startPlacing);
+    ornamentPicker((kind) => startPlacing(kind, 'tree'));
+  }
+  else if (st === 'snowman') {
+    if (!world.snowman && world.buildSnowman()) net.send({ t: 'snowman' });
+    snowmanCustomizer(world.snowmanStyle, (style) => {
+      world.applySnowmanStyle(style);
+      net.send({ t: 'snowmanStyle', style });
+    });
   }
 }
 
 function startPlacing(kind) {
   placing = { kind, pos: null, hover: null };
   world.setGhost(kind);
+  $('#place span').textContent = '🎄 트리를 눌러 걸 위치를 고르세요';
   $('#place').hidden = false; $('#place-ok').disabled = true;
   camMode = 'tree';
 }
@@ -223,9 +251,14 @@ document.querySelector('#hud').addEventListener('click', (e) => {
     case 'gift': goTo('gift'); break;
     case 'ornament': if (used.ornament) toast('오너먼트는 한 번만 달 수 있어요 🎄'); else goTo('tree'); break;
     case 'letter': goTo('letter'); break;
+    case 'snowman': goTo('snowman'); break;
     case 'costume': costumeModal(look, (l) => { applyLook(me.player.av, l); ls.set('santa-look', JSON.stringify(l)); net.send({ t: 'look', look: l }); }); break;
     case 'emote': emotePicker((id) => { startEmote(me.player.av, id); net.send({ t: 'emote', e: id }); }); break;
-    case 'firework': net.send({ t: 'firework', x: me.x, z: me.z - 6 }); break;
+    case 'sleigh': watchSanta(); break;
+    case 'music':
+      backgroundMusic.toggle().catch(() => setMusicButton(false));
+      setMusicButton(backgroundMusic.enabled);
+      break;
     default:
   }
 });
@@ -252,9 +285,9 @@ function showStart() {
     camMode = 'play';
     $('#hud').hidden = false;
     refreshButtons();
+    backgroundMusic.start().then(() => setMusicButton(backgroundMusic.enabled)).catch(() => setMusicButton(false));
     toast(net.mode === 'online' ? '🎄 산타 마을에 입장했어요! 바닥을 클릭하거나 WASD로 이동해요' : '🎄 체험 모드로 입장! (서버 없이 이 브라우저에서만 저장돼요)', 4200);
     if (net.mode === 'local') setTimeout(() => toast('💡 체험 모드의 공방 주인 열쇠는 demo 예요', 5200), 4800);
-    setTimeout(() => world.triggerSleigh(), 3000);
   };
 }
 
@@ -319,16 +352,17 @@ function frame() {
 
   // 카메라
   let goal;
-  if (camMode === 'tree') goal = { pos: new THREE.Vector3(-14 + 4, 9, 3 + 25), look: new THREE.Vector3(-14, 6, 3) };
+  if (camMode === 'tree') goal = { pos: new THREE.Vector3(TREE.x + 4, 9, TREE.z + 25), look: new THREE.Vector3(TREE.x, 6, TREE.z) };
   else goal = cameraGoal();
   const k = camMode === 'loading' ? 1 : Math.min(1, dt * (camMode === 'select' ? 2.2 : 3));
   camPos.lerp(goal.pos, k); camLook.lerp(goal.look, k);
   camera.position.copy(camPos); camera.lookAt(camLook);
 
   world.update(dt, new THREE.Vector3(me.x, 0, me.z));
-  // 하늘 이벤트 땐 살짝 하늘을 올려다봄
-  // (시선을 거의 수평으로 들어 올려 썰매/폭죽이 화면에 들어오게 함)
-  if (world.skyFocus > 0.01 && camMode === 'play') camera.lookAt(camLook.x, camLook.y + world.skyFocus * 0.8 * (camera.position.y - camLook.y + 2.5), camLook.z);
+  if (camMode === 'sleigh' && !world.sleigh.active) {
+    camMode = 'play';
+    $('#hud [data-act=sleigh]').disabled = false;
+  }
   renderer.render(scene, camera);
 }
 

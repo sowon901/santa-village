@@ -8,11 +8,11 @@ export class SantaRoom {
     this.room = null;
     // 저장된 선물/오너먼트/편지/사용기록을 읽어 Room을 복원
     ctx.blockConcurrencyWhile(async () => {
-      const [gifts, ornaments, letters, used] = await Promise.all(
-        ['gifts', 'ornaments', 'letters', 'used'].map((k) => ctx.storage.get(k)),
+      const [gifts, ornaments, letters, used, snowman, snowmanStyle] = await Promise.all(
+        ['gifts', 'ornaments', 'letters', 'used', 'snowman', 'snowmanStyle'].map((k) => ctx.storage.get(k)),
       );
       this.room = new Room(
-        { gifts, ornaments, letters, used },
+        { gifts, ornaments, letters, used, snowman, snowmanStyle },
         { ownerKey: env.OWNER_KEY || '', save: (k, v) => { ctx.storage.put(k, v); } },
       );
     });
@@ -36,16 +36,7 @@ export class SantaRoom {
     server.addEventListener('close', bye);
     server.addEventListener('error', bye);
 
-    // 접속자가 있는 동안 산타 썰매/폭죽 이벤트를 주기적으로 방송
-    if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + 25_000);
     return new Response(null, { status: 101, webSocket: client });
-  }
-
-  async alarm() {
-    if (this.room.count() > 0) {
-      this.room.ambient();
-      await this.ctx.storage.setAlarm(Date.now() + 45_000 + Math.random() * 30_000);
-    }
   }
 }
 

@@ -56,6 +56,13 @@ export const RIBBONS = [
   { id: 'purple', name: '퍼플', color: '#a259e6' },
 ];
 
+export const SNOWMAN_HATS = [
+  { id: 'topHat', name: '검정 중절모', emoji: '🎩' },
+  { id: 'santaHat', name: '산타 모자', emoji: '🎅' },
+  { id: 'beanie', name: '초록 털모자', emoji: '🧢' },
+  { id: 'none', name: '모자 없음', emoji: '✨' },
+];
+
 export const ORNAMENTS = [
   { id: 'ballRed', emoji: '🔴', name: '빨간 볼', color: '#e63946', shape: 'ball' },
   { id: 'ballGold', emoji: '🟡', name: '금빛 볼', color: '#ffc93c', shape: 'ball' },
@@ -76,4 +83,4 @@ export const EMOTES = [
 ];
 
 export const LIMITS = { gifts: 300, letters: 200, ornaments: 300, nick: 10, letterNick: 12, letterText: 500 };
-export const WORLD = { radius: 38 };
+export const WORLD = { radius: 27 };

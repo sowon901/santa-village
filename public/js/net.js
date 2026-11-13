@@ -3,7 +3,24 @@
 import { Room } from './room.js';
 
 const KEY = 'santa-village-local-v1';
+const ALT_KEYS = ['santa-village-local-v1', `santa-village-local-v1:${location.hostname}`];
 const rnd = (a, b) => a + Math.random() * (b - a);
+
+function loadState() {
+  for (const key of ALT_KEYS) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+  }
+  return {};
+}
+
+function saveState(state) {
+  for (const key of ALT_KEYS) {
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+  }
+}
 
 export function connect({ timeout = 3500 } = {}) {
   const q = new URLSearchParams(location.search);
@@ -31,15 +48,14 @@ export function connect({ timeout = 3500 } = {}) {
 }
 
 function makeLocal(net) {
-  let state = {};
-  try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+  let state = loadState();
   let timer;
   const room = new Room(state, {
     ownerKey: 'demo', // 체험 모드의 공방 주인 열쇠
     save: (k, v) => {
       state[k] = v;
       clearTimeout(timer);
-      timer = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }, 300);
+      timer = setTimeout(() => { saveState(state); }, 300);
     },
   });
 
@@ -52,13 +68,13 @@ function makeLocal(net) {
   const bots = [['눈송이', '#ff7eb6', 'antlers', true], ['진저', '#ffc93c', 'santaHat', false], ['루미', '#3b6fd8', 'none', false]];
   bots.forEach(([name, body, head, nose], i) => {
     const id = 'bot' + i;
-    const st = { x: rnd(-8, 8), z: rnd(2, 14) };
+    const st = { x: rnd(-8, 8), z: rnd(2, 8) };
     let tx = st.x, tz = st.z;
     room.addConn(id, () => {});
     room.handle(id, { t: 'join', cid: id, name, look: { body, head, nose, scarf: true, cheeks: true, mustache: i === 1 }, x: st.x, z: st.z });
     setInterval(() => {
       const dx = tx - st.x, dz = tz - st.z, d = Math.hypot(dx, dz);
-      if (d < 0.4) { tx = rnd(-10, 10); tz = rnd(2, 15); return; }
+      if (d < 0.4) { tx = rnd(-10, 10); tz = rnd(1, 9); return; }
       st.x += (dx / d) * 0.45; st.z += (dz / d) * 0.45;
       room.handle(id, { t: 'move', x: st.x, z: st.z, ry: Math.atan2(dx, dz) });
     }, 150);
@@ -66,7 +82,5 @@ function makeLocal(net) {
       if (room.gifts.length < 12) room.handle(id, { t: 'gift', item: 'bear', paper: ['redDots', 'blueStars', 'pinkCandy'][i], ribbon: ['gold', 'white', 'red'][i] });
     }, 30000 + i * 9000);
   });
-  setTimeout(() => room.ambient(), 14000);
-  setInterval(() => room.ambient(), 50000);
   return net;
 }

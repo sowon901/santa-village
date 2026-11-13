@@ -1,5 +1,5 @@
 // DOM UI: 토스트, 모달, 코스튬 선택, 선물 마법사, 오너먼트 선택, 편지, 이모트
-import { BODY_COLORS, HEAD_ITEMS, TOGGLES, GIFT_ITEMS, PAPERS, RIBBONS, ORNAMENTS, EMOTES, LIMITS } from './data.js';
+import { BODY_COLORS, HEAD_ITEMS, TOGGLES, GIFT_ITEMS, PAPERS, RIBBONS, ORNAMENTS, SNOWMAN_HATS, EMOTES, LIMITS } from './data.js';
 import { paperCanvas } from './gfx.js';
 
 const $ = (s) => document.querySelector(s);
@@ -91,7 +91,7 @@ export function giftWizard(onDone) {
       ok = !!st.ribbon;
     } else {
       const it = GIFT_ITEMS.find((i) => i.id === st.item), pp = PAPERS.find((p) => p.id === st.paper), rr = RIBBONS.find((r) => r.id === st.ribbon);
-      body = `<div class="final"><p>🎉 선물이 완성됐어요!</p><p class="sub">${it.emoji} ${it.name} · ${pp.name} · ${rr.name} 리본</p><p class="sub">보내면 하트 모양 선물 더미에 차곡차곡 쌓여요 💝</p></div>`;
+      body = `<div class="final"><p>🎉 선물이 완성됐어요!</p><p class="sub">${it.emoji} ${it.name} · ${pp.name} · ${rr.name} 리본</p><p class="sub">보내면 벽난로 옆 직사각형 선물 더미에 차곡차곡 쌓여요 🎁</p></div>`;
       ok = true;
     }
     root.innerHTML = `
@@ -123,6 +123,28 @@ export function ornamentPicker(onPick) {
     const b = e.target.closest('[data-o]');
     if (b) { closeModal(); onPick(b.dataset.o); }
   });
+}
+
+export function snowmanCustomizer(style, onDone) {
+  const selected = { ...style };
+  const m = modal('<div class="snowman-picker"></div>');
+  const root = m.el.querySelector('.snowman-picker');
+  const render = () => {
+    root.innerHTML = `<h3>⛄ 눈사람 꾸미기</h3>
+      <h4>목도리 색</h4>
+      <div class="sw">${RIBBONS.map((r) => `<button class="swatch${selected.scarf === r.id ? ' on' : ''}" data-scarf="${r.id}" style="background:${r.color}" aria-label="${r.name} 목도리" title="${r.name}"></button>`).join('')}</div>
+      <h4>모자</h4>
+      <div class="grid">${SNOWMAN_HATS.map((h) => `<button class="opt${selected.hat === h.id ? ' on' : ''}" data-hat="${h.id}"><span class="em">${h.emoji}</span>${h.name}</button>`).join('')}</div>
+      <button class="btn big" data-apply>변경 적용</button>`;
+  };
+  root.addEventListener('click', (e) => {
+    const scarf = e.target.closest('[data-scarf]');
+    if (scarf) { selected.scarf = scarf.dataset.scarf; render(); return; }
+    const hat = e.target.closest('[data-hat]');
+    if (hat) { selected.hat = hat.dataset.hat; render(); return; }
+    if (e.target.closest('[data-apply]')) { closeModal(); onDone(selected); }
+  });
+  render();
 }
 
 // ----- 이모트 -----
@@ -157,7 +179,7 @@ export function letterModal(ctx) {
           ? '<div class="letter lockd">🔒 잠긴 편지 <span>(공방 주인만 열람)</span></div>'
           : `<div class="letter">${l.locked ? '🔒 ' : ''}<b>${esc(l.nick)}</b><p>${esc(l.text)}</p></div>`)).join('') : '<p class="sub center">아직 편지가 없어요</p>'}</div>`;
     }
-    root.innerHTML = `<h3>✉️ 우체통</h3><div class="tabs"><button class="${tab === 'write' ? 'on' : ''}" data-tab="write">편지 쓰기</button><button class="${tab === 'read' ? 'on' : ''}" data-tab="read">편지 보기 (${ctx.letters.length})</button></div>${body}`;
+    root.innerHTML = `<h3>✉️ 편지 게시판</h3><div class="tabs"><button class="${tab === 'write' ? 'on' : ''}" data-tab="write">편지 쓰기</button><button class="${tab === 'read' ? 'on' : ''}" data-tab="read">편지 보기 (${ctx.letters.length})</button></div>${body}`;
     const ln = root.querySelector('#ln'), lt = root.querySelector('#lt'), send = root.querySelector('#lsend');
     if (send) {
       const check = () => { send.disabled = !ln.value.trim() || !lt.value.trim(); root.querySelector('#lc').textContent = `${lt.value.length} / ${LIMITS.letterText}`; };
